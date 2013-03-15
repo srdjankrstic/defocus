@@ -1,4 +1,4 @@
-function depth(image_file, varargin)
+function sol = depth(image_file, varargin)
     if (nargin > 1)
         options = varargin{1};
     else
@@ -11,7 +11,7 @@ function depth(image_file, varargin)
 
     %% Parameters:
     if ~isfield(options, 'edgethresh')
-        options.edgethresh = 0.05;
+        options.edgethresh = 0.03;
     end
     if ~isfield(options, 'reblur_size')
         options.reblur_size = [10 10];
@@ -56,21 +56,31 @@ function depth(image_file, varargin)
 
     % depth correlates with original blur, which we get as 1/sqrt(rat^2-1) at edges
     d = zeros(size(Grat));
-    for i=1:size(Grat,1)
-        for j =1:size(Grat,2)
+    for i= 1:size(Grat,1)
+        for j = 1:size(Grat,2)
             if Grat(i,j) > 1
-                d(i,j) = 1/sqrt(Grat(i,j)^2 - 1);
+                d(i,j) = options.reblur_sigma/sqrt(Grat(i,j)^2 - 1);
             end
         end
     end
-
-    imshow(d);
+    
+    if options.DEBUG
+        imshow(d);
+    end
     
     %drawpoints;
-    selectrect;
-    drawavgs;
-%    smoothed = fastPD(d);
+%    selectrect;
+%    drawavgs;
 
+    smoothed = propagate(im, e, d);
+    save withnewd.mat;
+    toc
+%    smoothed = fastPD(d, bw, 1);
+
+%    smoothed = fastPD(d, options.DEBUG);
+    figure; imshow(smoothed, []);
+
+    sol = smoothed;
     toc
 end
 
