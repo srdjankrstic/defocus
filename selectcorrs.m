@@ -112,6 +112,7 @@ function varargout = selectcorrs_OutputFcn(hObject, eventdata, handles)
 
 varargout{1} = format_output(handles);
 delete(hObject);
+closereq
 
 % --- Executes on button press in selectbtn.
 function selectbtn_Callback(hObject, eventdata, handles)

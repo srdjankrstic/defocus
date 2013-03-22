@@ -1,65 +1,61 @@
-function newd = propagate(im, e, d)
+function newd = propagate(im, d)
 
-epsilon = 1;
-lambda = 0.01;
+eps9 = 1/9;
+lambda = 0.2;
 
 h = size(im, 1);
 w = size(im, 2);
-if size(im, 3) == 1
-    im2 = zeros(h, w, 3);
-    im2(:, :, 1) = im; im2(:, :, 2) = im; im2(:, :, 3) = im;
-    im = im2;
-end
+
+% for plankton can put an artificial crazy edge around the border
+%d(2,1:w) = 0.00001;
+%d(h-1,1:w) = 0.00001;
+%d(1:h,2) = 0.00001;
+%d(1:h,w-1) = 0.00001;
 
 N = h * w;
-L = zeros(N);
-D = zeros(N);
+inner = (h-2)*(w-2);
 
-for k = 1:N
-    x = ceil(k/w);
-    y = k - (x - 1) * w;
-    if e(x, y)
-        D(k, k) = 1;
-    end
-    if (x == 1 || y == 1 || x == h || y == w)
-        continue;
-    end
-    
-    meanmat = mean(mean(im((x-1):(x+1), (y-1):(y+1), :)));
-    covmat = cov(reshape(im((x-1):(x+1), (y-1):(y+1), :), 9, 3));
-       
-    for pair = 1:81
-        pix1 = ceil(pair/9);
-        pix2 = pair - (pix1 - 1) * 9;
-        offx1 = ceil(pix1/3) - 2;
-        offy1 = pix1 - 3 * (offx1 + 1) - 2;
-        offx2 = ceil(pix2/3) - 2;
-        offy2 = pix2 - 3 * (offx2 + 1) - 2;
-%        if ~(x + offx1 > 0 && x + offx1 <= h && y + offy1 > 0 && y + offy1 <= h && ...
-%             x + offx2 > 0 && x + offx2 <= h && y + offy2 > 0 && y + offy2 <= h)
-%            continue;
-%        end
-        i = (x + offx1 - 1) * w + y + offy1;
-        j = (x + offx2 - 1) * w + y + offy2;
-        ix = ceil(i/w); iy = i - (ix-1)*w;
-        jx = ceil(j/w); jy = j - (jx-1)*w;
-        
-        if i == j
-            krondelta = 1;
-        else
-            krondelta = 0;
-        end
+Lind1 = zeros(81*inner, 1);
+Lind2 = zeros(81*inner, 1);
+Lindv = zeros(81*inner, 1);
 
-        L(i,j) = L(i,j) + ...
-                 krondelta - (1/9) * ...
-                             (1 + reshape((im(ix, iy, :) - meanmat), 3, 1)' * ...
-                                  pinv(covmat + (epsilon/9)*eye(3)) * ...
-                                  reshape((im(jx, jy, :) - meanmat), 3, 1));
+offx = [-1 -1 -1  0  0  0  1  1  1];
+offy = [-1  0  1 -1  0  1 -1  0  1];
+
+count = 0;
+for i = 2:(h-1)
+    for j = 2:(w-1)
+        window = im((i-1):(i+1), (j-1):(j+1));
+        mn = mean(window(:));
+        vr = var(window(:));
+        for p = 1:9
+            x1 = i + offx(p);
+            y1 = j + offy(p);
+            px1 = w * (x1 - 1) + y1;
+            for q = 1:9
+                x2 = i + offx(q);
+                y2 = j + offy(q);
+                px2 = w * (x2 - 1) + y2;
+                count = count + 1;
+                Lind1(count) = px1;
+                Lind2(count) = px2;
+                Lindv(count) = (px1 == px2)-(1/9)*(1 + ((eps9 + vr))*(im(x1,y1)-mn)*(im(x2,y2)-mn));
+            end
+        end                
     end
 end
 
-save temp.mat;
+L = sparse(Lind1, Lind2, Lindv, N, N);
+
+Dind = find(d');
+D = sparse(Dind, Dind, ones(size(Dind)), N, N);
+
 d = reshape(d', N, 1);
 toc
-newd = lsqr(L + lambda * D, lambda * D * d);
+
+newd  = (L + lambda * D)\(lambda * lambda * D * d);
+%newd = lsqr(L + lambda * D, lambda * D * d, [], 10000);
 newd = reshape(newd, w, h)';
+
+% optionaly invert, depending what kind of visualization is preferred
+newd = max(max(newd)) - newd;

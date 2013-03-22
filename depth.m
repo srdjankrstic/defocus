@@ -6,12 +6,10 @@ function sol = depth(image_file, varargin)
     end
     
     tic
-    %clear all;
-    %load('plank302.mat');
 
     %% Parameters:
     if ~isfield(options, 'edgethresh')
-        options.edgethresh = 0.03;
+        options.edgethresh = 0.08;
     end
     if ~isfield(options, 'reblur_size')
         options.reblur_size = [10 10];
@@ -35,24 +33,28 @@ function sol = depth(image_file, varargin)
     else
         bw = im;
     end
+%    clear im;
 
-    [e, t] = edgedetect(bw, options.edgethresh);
     if options.DEBUG
+        [e, t] = edgedetect(bw, options.edgethresh);
         h = imshow(t);
         waitfor(h);
+    else
+        e = edgedetect(bw, options.edgethresh);
     end
 
     % calculate the gradient magnitude of the original image everywhere
-    [Gmag, Gdir] = imgradient(bw);
+    Gmag = imgradient(bw);
 
     % reblur and find the gradient magnitudes of the reblurred image
     G = fspecial('gaussian', options.reblur_size, options.reblur_sigma);
     bw2 = imfilter(bw, G);
-    [Gmag2, Gdir2] = imgradient(bw2);
+    Gmag2 = imgradient(bw2);
 
     % calculte the ratio between the gradient magnitudes at edge locations
     Grat = Gmag ./ Gmag2;
     Grat = Grat .* e;
+    clear Gmag Gmag2;
 
     % depth correlates with original blur, which we get as 1/sqrt(rat^2-1) at edges
     d = zeros(size(Grat));
@@ -63,24 +65,30 @@ function sol = depth(image_file, varargin)
             end
         end
     end
+    clear Grat;
     
+    % hack
+    avg = mean(d(find(d(:))));
+    stdev = std(d(find(d(:))));
+    thresh = avg + 2.5*stdev;
+    d(d > thresh) = 0;
+
     if options.DEBUG
         imshow(d);
     end
     
     %drawpoints;
-%    selectrect;
-%    drawavgs;
+    %selectrect;
 
-    smoothed = propagate(im, e, d);
-    save withnewd.mat;
-    toc
+%    h = imshow(normalize(d));
+%    waitfor(h);
+
 %    smoothed = fastPD(d, bw, 1);
+    smoothed = propagate(bw, d);
+    toc
 
-%    smoothed = fastPD(d, options.DEBUG);
     figure; imshow(smoothed, []);
 
     sol = smoothed;
     toc
 end
-
